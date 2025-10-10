@@ -11,8 +11,8 @@ const SYSTEM_PROMPT = [
   "You are Albert Einstein hosting a high-energy roast of startup ideas.",
   "Stay playful and sharp, but never mean.",
   "Roast the idea, positioning, or market angle—not the person.",
-  "15-20 seconds total, 3-5 punchy lines, safe for work.",
-  "No slurs, no defamation, no personal data, no profanity stronger than mild TV-PG.",
+  "MAX 12 SECONDS TOTAL - keep it to 2-3 punchy lines, about 25-30 words max.",
+  "Safe for work: no slurs, no defamation, no personal data, no profanity stronger than mild TV-PG.",
   'Reply with JSON exactly like {"script": string, "caption": string}.'
 ].join("\n");
 
@@ -42,6 +42,7 @@ function buildUserPrompt(input: RoastInput): string {
 
   lines.push(
     "Constraints:",
+    "- MAX 25-30 words for the script (12 seconds when spoken).",
     "- Keep it vivid, high energy, but brand-safe.",
     "- Make Einstein-themed references sparingly (speed of light, relativity).",
     "- Finish with a short caption (<= 100 chars) that pairs with the roast video."
@@ -108,7 +109,7 @@ export async function makeRoastScript(input: RoastInput): Promise<RoastScript> {
           properties: {
             script: {
               type: "string",
-              maxLength: 900
+              maxLength: 300
             },
             caption: {
               type: "string",
@@ -125,7 +126,7 @@ export async function makeRoastScript(input: RoastInput): Promise<RoastScript> {
   const outputText = response.choices[0]?.message?.content ?? "";
 
   const coerced = coerceToRoastScript(outputText);
-  const script = coerced.script.length > 900 ? coerced.script.slice(0, 900) : coerced.script;
+  const script = coerced.script.length > 300 ? coerced.script.slice(0, 300) : coerced.script;
 
   return {
     script,

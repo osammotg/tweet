@@ -46,7 +46,7 @@ export async function generateEinsteinVideo(request: VideoRequest): Promise<Vide
 
   return {
     mp4: demoBytes,
-    durationSec: 18,
+    durationSec: 12,
     checksum
   };
 }

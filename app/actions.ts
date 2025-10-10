@@ -1,7 +1,7 @@
 'use server';
 
 import { buildScriptFromTweet } from "@/lib/prompt";
-import { readRoastMetadata, saveMp4AndGetUrl, writeRoastMetadata } from "@/lib/storage";
+import { readRoastMetadata, saveMp4AndGetUrl, writeRoastMetadata, clearAllCache } from "@/lib/storage";
 import { generateEinsteinVideo } from "@/lib/video";
 import { hashInput, withRetry } from "@/lib/util";
 import { srtFromLines } from "@/lib/srt";
@@ -119,4 +119,17 @@ export async function buildRoastVideoAction(rawInput: RoastInput): Promise<Roast
     sora_prompt,
     fromCache: false
   };
+}
+
+export async function clearCacheAction(): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    const count = await clearAllCache();
+    return { success: true, count };
+  } catch (error) {
+    return { 
+      success: false, 
+      count: 0, 
+      error: error instanceof Error ? error.message : "Unknown error" 
+    };
+  }
 }

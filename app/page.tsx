@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from "react";
-import { buildRoastVideoAction } from "./actions";
+import { buildRoastVideoAction, clearCacheAction } from "./actions";
 import type { RoastInput, RoastOutput } from "@/lib/types";
 import type { EnergyMode } from "@/lib/duration";
 
@@ -22,6 +22,8 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [generationTime, setGenerationTime] = useState<number | null>(null);
+  const [clearingCache, setClearingCache] = useState(false);
+  const [cacheMessage, setCacheMessage] = useState<string | null>(null);
 
   // Form state
   const [tweetText, setTweetText] = useState(SAMPLE_INPUT.tweetText);
@@ -65,6 +67,25 @@ export default function HomePage() {
     });
   };
 
+  const handleClearCache = async () => {
+    setClearingCache(true);
+    setCacheMessage(null);
+    
+    try {
+      const result = await clearCacheAction();
+      if (result.success) {
+        setCacheMessage(`✅ Cleared ${result.count} cached file(s)`);
+        setTimeout(() => setCacheMessage(null), 3000);
+      } else {
+        setCacheMessage(`❌ Error: ${result.error}`);
+      }
+    } catch (err) {
+      setCacheMessage(`❌ Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setClearingCache(false);
+    }
+  };
+
   return (
     <main style={{ 
       minHeight: "100vh",
@@ -90,9 +111,55 @@ export default function HomePage() {
         }}>
           🧠 Einstein Roast Lab
         </h1>
-        <p style={{ color: "#666", marginBottom: "2rem" }}>
-          Generate high-energy Einstein-style roast videos for startup pitches with proper timing and beat structure!
-        </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
+          <p style={{ color: "#666", margin: 0 }}>
+            Generate high-energy Einstein-style roast videos for startup pitches with proper timing and beat structure!
+          </p>
+          <button
+            type="button"
+            onClick={handleClearCache}
+            disabled={clearingCache}
+            style={{
+              padding: "0.5rem 1rem",
+              fontSize: "0.875rem",
+              fontWeight: "600",
+              color: clearingCache ? "#999" : "#DC2626",
+              background: "white",
+              border: "2px solid #DC2626",
+              borderRadius: "8px",
+              cursor: clearingCache ? "not-allowed" : "pointer",
+              transition: "all 0.2s",
+              whiteSpace: "nowrap"
+            }}
+            onMouseEnter={(e) => {
+              if (!clearingCache) {
+                e.currentTarget.style.background = "#DC2626";
+                e.currentTarget.style.color = "white";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "white";
+              e.currentTarget.style.color = "#DC2626";
+            }}
+          >
+            {clearingCache ? "🔄 Clearing..." : "🗑️ Clear Cache"}
+          </button>
+        </div>
+
+        {cacheMessage && (
+          <div style={{
+            padding: "0.75rem 1rem",
+            marginBottom: "1rem",
+            background: cacheMessage.startsWith("✅") ? "#D1FAE5" : "#FEE2E2",
+            border: `2px solid ${cacheMessage.startsWith("✅") ? "#10B981" : "#EF4444"}`,
+            borderRadius: "8px",
+            color: cacheMessage.startsWith("✅") ? "#065F46" : "#991B1B",
+            fontWeight: "600",
+            fontSize: "0.875rem"
+          }}>
+            {cacheMessage}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
           {/* Tweet Text */}

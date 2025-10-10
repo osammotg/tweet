@@ -123,3 +123,25 @@ export function getRoastFilePathFromName(fileName: string): string {
 
   return resolved;
 }
+
+export async function clearAllCache(): Promise<number> {
+  try {
+    const files = await fs.readdir(STORAGE_ROOT);
+    let count = 0;
+
+    for (const file of files) {
+      if (file.endsWith(VIDEO_EXTENSION) || file.endsWith(META_EXTENSION)) {
+        await fs.unlink(path.join(STORAGE_ROOT, file));
+        count++;
+      }
+    }
+
+    return count;
+  } catch (error) {
+    // If directory doesn't exist, that's fine
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return 0;
+    }
+    throw error;
+  }
+}

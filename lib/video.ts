@@ -48,8 +48,8 @@ function computeChecksum(script: string, seed?: number): string {
 }
 
 function getSizeFromAspect(aspect: "9:16" | "16:9" = "9:16"): string {
-  // Sora Turbo supports: 1920x1080, 1080x1920
-  return aspect === "16:9" ? "1920x1080" : "1080x1920";
+  // Sora API supports: '720x1280', '1280x720', '1024x1792', and '1792x1024'
+  return aspect === "16:9" ? "1280x720" : "720x1280";
 }
 
 async function generateWithSora(request: VideoRequest): Promise<Buffer> {

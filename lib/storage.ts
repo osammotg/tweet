@@ -10,6 +10,8 @@ type RoastMetadata = {
   caption: string;
   durationSec: number;
   videoUrl: string;
+  srt?: string;
+  sora_prompt?: string;
 };
 
 async function ensureStorageDir(): Promise<void> {
@@ -91,7 +93,9 @@ export async function readRoastMetadata(checksum: string): Promise<RoastMetadata
         script: candidate.script,
         caption: candidate.caption,
         durationSec: candidate.durationSec,
-        videoUrl: candidate.videoUrl
+        videoUrl: candidate.videoUrl,
+        srt: typeof candidate.srt === "string" ? candidate.srt : undefined,
+        sora_prompt: typeof candidate.sora_prompt === "string" ? candidate.sora_prompt : undefined
       };
     }
   }

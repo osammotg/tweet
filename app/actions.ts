@@ -1,9 +1,11 @@
 'use server';
 
-import { makeRoastScript } from "@/lib/prompt";
+import { buildScriptFromTweet } from "@/lib/prompt";
 import { readRoastMetadata, saveMp4AndGetUrl, writeRoastMetadata } from "@/lib/storage";
 import { generateEinsteinVideo } from "@/lib/video";
 import { hashInput, withRetry } from "@/lib/util";
+import { srtFromLines } from "@/lib/srt";
+import { buildShotsAndSoraPrompt } from "@/lib/shots";
 import type { RoastInput, RoastOutput } from "@/lib/types";
 
 function assertField(value: string | undefined, field: string): string {
@@ -22,7 +24,9 @@ function normalizeInput(input: RoastInput): RoastInput {
     tweetText: assertField(input.tweetText, "tweetText"),
     authorHandle: input.authorHandle?.trim() || undefined,
     website: input.website?.trim() || undefined,
-    angle: input.angle?.trim() || undefined
+    angle: input.angle?.trim() || undefined,
+    targetSec: input.targetSec ?? 12,
+    energy: input.energy ?? "HYPER"
   };
 }
 
@@ -36,23 +40,46 @@ export async function buildRoastVideoAction(rawInput: RoastInput): Promise<Roast
   const cached = await readRoastMetadata(checksum);
 
   if (cached) {
+    const script_lines = cached.script.split('\n').filter(l => l.trim());
     return {
       ok: true,
       tweetId: input.tweetId,
       script: cached.script,
+      script_lines,
       caption: cached.caption,
       videoUrl: cached.videoUrl,
       checksum,
-      durationSec: cached.durationSec
+      durationSec: cached.durationSec,
+      wps: input.energy === "HYPER" ? 3.0 : 2.4,
+      maxWords: cached.script.split(/\s+/).length,
+      srt: cached.srt,
+      sora_prompt: cached.sora_prompt
     };
   }
 
-  const { script, caption } = await withRetry(
-    () => makeRoastScript(input),
+  // Build script with proper budgeting
+  const { script_lines, caption, wps, maxWords, targetSec } = await withRetry(
+    () => buildScriptFromTweet(input),
     3,
     600
   );
 
+  const script = script_lines.join('\n');
+
+  // Generate SRT
+  const srt = srtFromLines(script_lines, wps);
+
+  // Generate shot plan (optional, for future Sora integration)
+  let sora_prompt: string | undefined;
+  try {
+    const shotPlan = await buildShotsAndSoraPrompt(script_lines, "9:16", targetSec, input.energy ?? "HYPER");
+    sora_prompt = shotPlan.sora_prompt;
+  } catch {
+    // Shot planning is optional
+    sora_prompt = undefined;
+  }
+
+  // Generate video (currently using demo)
   const video = await withRetry(
     () => generateEinsteinVideo({ script, seed }),
     2,
@@ -64,17 +91,24 @@ export async function buildRoastVideoAction(rawInput: RoastInput): Promise<Roast
   await writeRoastMetadata(checksum, {
     script,
     caption,
-    durationSec: video.durationSec,
-    videoUrl
+    durationSec: targetSec,
+    videoUrl,
+    srt,
+    sora_prompt
   });
 
   return {
     ok: true,
     tweetId: input.tweetId,
     script,
+    script_lines,
     caption,
     videoUrl,
     checksum,
-    durationSec: video.durationSec
+    durationSec: targetSec,
+    wps,
+    maxWords,
+    srt,
+    sora_prompt
   };
 }

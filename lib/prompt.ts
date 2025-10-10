@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { RoastInput } from "./types";
+import { computeBudgetSec, totalWords, type EnergyMode } from "./duration";
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
@@ -7,113 +8,121 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-const SYSTEM_PROMPT = [
-  "You are Albert Einstein hosting a high-energy roast of startup ideas.",
-  "Stay playful and sharp, but never mean.",
-  "Roast the idea, positioning, or market angle—not the person.",
-  "MAX 12 SECONDS TOTAL - keep it to 2-3 punchy lines, about 25-30 words max.",
-  "Safe for work: no slurs, no defamation, no personal data, no profanity stronger than mild TV-PG.",
-  'Reply with JSON exactly like {"script": string, "caption": string}.'
-].join("\n");
+const SCRIPT_SYSTEM_PROMPT = `You write a 3–5 beat, Einstein-parody roast script. High energy, witty, SFW.
+Roast the idea/claims, not people. No slurs, no accusations, no legal/medical claims.
+Output strict JSON: {
+  "script_lines": string[],   // each line = one sentence, fast delivery
+  "caption": string           // ≤ 160 chars, tweet-ready
+}`;
 
-type RoastScript = {
-  script: string;
+const SHRINK_SYSTEM_PROMPT = `Compress without losing joke density. Keep voice and beats. Output same JSON.`;
+
+type ScriptResult = {
+  script_lines: string[];
   caption: string;
 };
 
-function buildUserPrompt(input: RoastInput): string {
+function buildScriptUserPrompt(
+  input: RoastInput,
+  targetSec: number,
+  energy: EnergyMode,
+  wps: number,
+  maxWords: number
+): string {
   const lines = [
-    `Tweet ID: ${input.tweetId}`,
-    `Startup: ${input.startupName}`,
-    `Tweet Text:\n${input.tweetText}`
+    `Tweet content:`,
+    input.tweetText,
+    "",
+    `Startup name: ${input.startupName}`,
+    `Detected angle: ${input.angle || "positioning"}`,
+    `Energy mode: ${energy}`,
+    `Target duration (seconds): ${targetSec}`,
+    `Words-per-second: ${wps}`,
+    `Max words allowed: ${maxWords}`,
+    "",
+    `Rules:`,
+    `- Total words across all lines ≤ ${maxWords}.`,
+    `- Structure: Hook, Twist, Punchline, Tag, Button. Each line punchy (8–12 words).`,
+    `- Einstein voice: curious, teasing, high tempo. No personal attacks.`,
+    `- Avoid: "revolutionary," "for everyone," "democratizing" unless mocking.`,
+    `Return only the JSON, no commentary.`
   ];
 
   if (input.authorHandle) {
-    lines.push(`Author Handle: ${input.authorHandle}`);
+    lines.splice(4, 0, `Author Handle: ${input.authorHandle}`);
   }
 
   if (input.website) {
-    lines.push(`Website: ${input.website}`);
+    lines.splice(input.authorHandle ? 5 : 4, 0, `Website: ${input.website}`);
   }
 
-  if (input.angle) {
-    lines.push(`Requested Angle: ${input.angle}`);
-  }
-
-  lines.push(
-    "Constraints:",
-    "- MAX 25-30 words for the script (12 seconds when spoken).",
-    "- Keep it vivid, high energy, but brand-safe.",
-    "- Make Einstein-themed references sparingly (speed of light, relativity).",
-    "- Finish with a short caption (<= 100 chars) that pairs with the roast video."
-  );
-
-  return lines.join("\n\n");
+  return lines.join("\n");
 }
 
-function coerceToRoastScript(raw: string): RoastScript {
+function safeParse(text: string): ScriptResult {
   try {
-    const parsed = JSON.parse(raw) as Partial<RoastScript>;
-
+    const parsed = JSON.parse(text) as Partial<ScriptResult>;
     if (
       parsed &&
-      typeof parsed.script === "string" &&
+      Array.isArray(parsed.script_lines) &&
       typeof parsed.caption === "string"
     ) {
       return {
-        script: parsed.script,
+        script_lines: parsed.script_lines,
         caption: parsed.caption
       };
     }
   } catch {
-    // ignored; we will recover below.
+    // Fall through to fallback
   }
 
-  const fallbackScript = raw.trim();
-  const [firstLine, ...rest] = fallbackScript.split("\n");
-  const fallbackCaption =
-    firstLine.length <= 100 ? firstLine : `${firstLine.slice(0, 97)}...`;
-
   return {
-    script: fallbackScript,
-    caption: fallbackCaption
+    script_lines: ["Einstein reacts to your startup with physics-based wit!"],
+    caption: "Einstein reacts."
   };
 }
 
-export async function makeRoastScript(input: RoastInput): Promise<RoastScript> {
+export async function buildScriptFromTweet(input: RoastInput): Promise<{
+  script_lines: string[];
+  caption: string;
+  wps: number;
+  maxWords: number;
+  targetSec: number;
+}> {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not set.");
   }
 
-  const response = await client.chat.completions.create({
+  const targetSec = input.targetSec ?? 12;
+  const energy = input.energy ?? "HYPER";
+  const { wps, maxWords } = computeBudgetSec(targetSec, energy);
+
+  const userPrompt = buildScriptUserPrompt(input, targetSec, energy, wps, maxWords);
+
+  // First pass
+  const firstResponse = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.9,
     max_tokens: 600,
     messages: [
-      {
-        role: "system",
-        content: SYSTEM_PROMPT
-      },
-      {
-        role: "user",
-        content: buildUserPrompt(input)
-      }
+      { role: "system", content: SCRIPT_SYSTEM_PROMPT },
+      { role: "user", content: userPrompt }
     ],
     response_format: {
       type: "json_schema",
       json_schema: {
-        name: "einstein_roast_script",
+        name: "roast_script",
         schema: {
           type: "object",
-          required: ["script", "caption"],
+          required: ["script_lines", "caption"],
           properties: {
-            script: {
-              type: "string",
-              maxLength: 300
+            script_lines: {
+              type: "array",
+              items: { type: "string" }
             },
             caption: {
               type: "string",
-              maxLength: 120
+              maxLength: 160
             }
           },
           additionalProperties: false
@@ -123,13 +132,55 @@ export async function makeRoastScript(input: RoastInput): Promise<RoastScript> {
     }
   });
 
-  const outputText = response.choices[0]?.message?.content ?? "";
+  const firstContent = firstResponse.choices[0]?.message?.content ?? "{}";
+  const firstResult = safeParse(firstContent);
 
-  const coerced = coerceToRoastScript(outputText);
-  const script = coerced.script.length > 300 ? coerced.script.slice(0, 300) : coerced.script;
+  // Check if within budget
+  if (totalWords(firstResult.script_lines) <= maxWords) {
+    return { ...firstResult, wps, maxWords, targetSec };
+  }
 
-  return {
-    script,
-    caption: coerced.caption.trim()
-  };
+  // Shrink pass
+  const shrinkUserPrompt = `Current script (JSON):
+${JSON.stringify(firstResult)}
+
+Max words: ${maxWords}
+Rules: shorten lines; prefer punchy synonyms; merge beats rather than list them.`;
+
+  const shrinkResponse = await client.chat.completions.create({
+    model: MODEL,
+    temperature: 0.7,
+    max_tokens: 500,
+    messages: [
+      { role: "system", content: SHRINK_SYSTEM_PROMPT },
+      { role: "user", content: shrinkUserPrompt }
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "roast_script_shrunk",
+        schema: {
+          type: "object",
+          required: ["script_lines", "caption"],
+          properties: {
+            script_lines: {
+              type: "array",
+              items: { type: "string" }
+            },
+            caption: {
+              type: "string",
+              maxLength: 160
+            }
+          },
+          additionalProperties: false
+        },
+        strict: true
+      }
+    }
+  });
+
+  const shrunkContent = shrinkResponse.choices[0]?.message?.content ?? "{}";
+  const shrunkResult = safeParse(shrunkContent);
+
+  return { ...shrunkResult, wps, maxWords, targetSec };
 }

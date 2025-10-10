@@ -24,4 +24,5 @@ export type RoastOutput = {
   maxWords: number;
   srt?: string;
   sora_prompt?: string;
+  fromCache?: boolean;
 };

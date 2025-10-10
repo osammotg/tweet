@@ -21,6 +21,7 @@ export default function HomePage() {
   const [result, setResult] = useState<RoastOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [generationTime, setGenerationTime] = useState<number | null>(null);
 
   // Form state
   const [tweetText, setTweetText] = useState(SAMPLE_INPUT.tweetText);
@@ -48,13 +49,18 @@ export default function HomePage() {
     startTransition(() => {
       setError(null);
       setResult(null);
+      setGenerationTime(null);
 
+      const startTime = Date.now();
+      
       buildRoastVideoAction(input)
         .then((payload) => {
           setResult(payload);
+          setGenerationTime(Date.now() - startTime);
         })
         .catch((err: unknown) => {
           setError(err instanceof Error ? err.message : "Unknown error");
+          setGenerationTime(null);
         });
     });
   };
@@ -296,9 +302,49 @@ export default function HomePage() {
         {/* Result Display */}
         {result ? (
           <div style={{ marginTop: "2rem" }}>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: "bold", marginBottom: "1rem", color: "#333" }}>
-              🎬 Roast Generated!
-            </h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1rem" }}>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#333", margin: 0 }}>
+                🎬 Roast Generated!
+              </h2>
+              {result.fromCache ? (
+                <span style={{
+                  padding: "0.25rem 0.75rem",
+                  background: "#FEF3C7",
+                  border: "1px solid #F59E0B",
+                  borderRadius: "12px",
+                  fontSize: "0.875rem",
+                  fontWeight: "600",
+                  color: "#92400E"
+                }}>
+                  ⚡ From Cache
+                </span>
+              ) : (
+                <span style={{
+                  padding: "0.25rem 0.75rem",
+                  background: "#D1FAE5",
+                  border: "1px solid #10B981",
+                  borderRadius: "12px",
+                  fontSize: "0.875rem",
+                  fontWeight: "600",
+                  color: "#065F46"
+                }}>
+                  ✨ Fresh LLM Call
+                </span>
+              )}
+              {generationTime && (
+                <span style={{
+                  padding: "0.25rem 0.75rem",
+                  background: "#E0E7FF",
+                  border: "1px solid #6366F1",
+                  borderRadius: "12px",
+                  fontSize: "0.875rem",
+                  fontWeight: "600",
+                  color: "#3730A3"
+                }}>
+                  ⏱️ {(generationTime / 1000).toFixed(2)}s
+                </span>
+              )}
+            </div>
             
             <div style={{ 
               background: "#f7fafc",

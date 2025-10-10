@@ -53,7 +53,8 @@ export async function buildRoastVideoAction(rawInput: RoastInput): Promise<Roast
       wps: input.energy === "HYPER" ? 3.0 : 2.4,
       maxWords: cached.script.split(/\s+/).length,
       srt: cached.srt,
-      sora_prompt: cached.sora_prompt
+      sora_prompt: cached.sora_prompt,
+      fromCache: true
     };
   }
 
@@ -109,6 +110,7 @@ export async function buildRoastVideoAction(rawInput: RoastInput): Promise<Roast
     wps,
     maxWords,
     srt,
-    sora_prompt
+    sora_prompt,
+    fromCache: false
   };
 }

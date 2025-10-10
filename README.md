@@ -49,32 +49,35 @@ npm run dev
 
 ### Using Sora Turbo
 
-⚠️ **Important:** As of December 2024, Sora 2 API is in **limited preview** and not publicly available yet.
+⚠️ **Important:** Sora 2 API is currently in **preview** and requires special access.
 
 **Current Status:**
 - ✅ **Script Generation**: Working perfectly with GPT-4o-mini
-- ⚠️ **Video Generation**: Sora API requires special access (waitlist/invitation)
+- ⚠️ **Video Generation**: Sora API requires preview access
 - 🔄 **Fallback**: Uses demo video when Sora isn't available
 
-**To Enable Sora (when available):**
+**To Enable Sora:**
 
 1. **Get Sora API Access**: 
-   - Join OpenAI's waitlist at [platform.openai.com](https://platform.openai.com)
-   - Sora 2 API is currently in limited preview (invitation-only)
-   - Expected to be publicly available "in the coming weeks"
+   - Request access to Sora API preview at [platform.openai.com](https://platform.openai.com)
+   - The API is available but requires approval for preview access
 
 2. **Enable in Environment**: Set `USE_SORA=true` in your `.env.local` file
 
-3. **Test Multiple Endpoints**: The app tries these endpoints:
-   - `https://api.openai.com/v1/video/generations`
-   - `https://api.openai.com/v1/sora/generations`
-   - `https://api.openai.com/v1/generations`
+3. **API Implementation**: Uses official Sora API endpoints:
+   - `POST /v1/videos` - Create video job
+   - `GET /v1/videos/{id}` - Check status
+   - `GET /v1/videos/{id}/content` - Download MP4
 
 **What You'll See:**
-- ✅ **Success**: Real Sora-generated videos (when you have access)
-- ❌ **Access Denied**: "Sora API access denied" - you need special access
-- ❌ **Not Found**: "All Sora API endpoints failed" - API not available yet
+- ✅ **Success**: Real Sora-generated videos with polling progress
+- ❌ **Access Denied**: "Sora API access denied" - you need preview access
+- ❌ **Parameter Error**: Wrong API parameters (400 error)
 - 📹 **Demo**: Falls back to demo video (current behavior)
+
+**Sora Models Available:**
+- `sora-2`: Fast generation, good for iteration
+- `sora-2-pro`: High quality, production-ready
 
 **Features:**
 - 🎬 Dynamic camera movements with Einstein-like presenter

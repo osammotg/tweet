@@ -55,99 +55,98 @@ function getSizeFromAspect(aspect: "9:16" | "16:9" = "9:16"): string {
 async function generateWithSora(request: VideoRequest): Promise<Buffer> {
   const prompt = request.soraPrompt || buildDefaultSoraPrompt(request.script);
   
-  console.log("🎬 Generating video with Sora Turbo...");
+  console.log("🎬 Generating video with Sora 2...");
   console.log("Prompt:", prompt);
 
   try {
-    // Try multiple possible Sora API endpoints
-    const possibleEndpoints = [
-      "https://api.openai.com/v1/video/generations",
-      "https://api.openai.com/v1/sora/generations", 
-      "https://api.openai.com/v1/generations"
-    ];
+    // Use the official Sora API endpoint from documentation
+    const response = await fetch("https://api.openai.com/v1/videos", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "sora-2", // Use sora-2 for speed, or sora-2-pro for quality
+        prompt: prompt,
+        size: getSizeFromAspect(request.aspect),
+        seconds: request.durationSec,
+      }),
+    });
 
-    let lastError: Error | null = null;
-
-    for (const endpoint of possibleEndpoints) {
-      try {
-        console.log(`Trying endpoint: ${endpoint}`);
-        
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: "sora-turbo",
-            prompt: prompt,
-            size: getSizeFromAspect(request.aspect),
-            duration: request.durationSec,
-          }),
-        });
-
-        if (response.status === 404) {
-          console.log(`Endpoint ${endpoint} not found, trying next...`);
-          continue;
-        }
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.log(`Endpoint ${endpoint} error (${response.status}): ${errorText}`);
-          
-          // If it's a 401/403, the endpoint exists but we don't have access
-          if (response.status === 401 || response.status === 403) {
-            throw new Error(`Sora API access denied (${response.status}): ${errorText}. Sora API may require special access or be in limited preview.`);
-          }
-          
-          // If it's a 400, the endpoint exists but parameters are wrong
-          if (response.status === 400) {
-            throw new Error(`Sora API parameter error (${response.status}): ${errorText}`);
-          }
-          
-          continue; // Try next endpoint
-        }
-
-        const data = await response.json() as {
-          id: string;
-          status: string;
-          data?: Array<{ url: string }>;
-          url?: string;
-        };
-
-        console.log("✅ Sora API response:", data);
-
-        // Handle different response formats
-        let videoUrl: string | undefined;
-        
-        if (data.url) {
-          videoUrl = data.url;
-        } else if (data.status === "completed" && data.data && data.data[0]) {
-          videoUrl = data.data[0].url;
-        } else {
-          throw new Error(`Video generation incomplete. Status: ${data.status}`);
-        }
-
-        console.log("✅ Sora video generated:", videoUrl);
-
-        // Download the video from the URL
-        const videoResponse = await fetch(videoUrl);
-        if (!videoResponse.ok) {
-          throw new Error(`Failed to download video: ${videoResponse.statusText}`);
-        }
-
-        const arrayBuffer = await videoResponse.arrayBuffer();
-        return Buffer.from(arrayBuffer);
-        
-      } catch (error) {
-        lastError = error as Error;
-        console.log(`Endpoint ${endpoint} failed:`, error);
-        continue;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log(`Sora API error (${response.status}): ${errorText}`);
+      
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(`Sora API access denied (${response.status}): ${errorText}. You may need to request access to the Sora API preview.`);
       }
+      
+      if (response.status === 400) {
+        throw new Error(`Sora API parameter error (${response.status}): ${errorText}`);
+      }
+      
+      throw new Error(`Sora API error (${response.status}): ${errorText}`);
     }
 
-    // If all endpoints failed
-    throw lastError || new Error("All Sora API endpoints failed. Sora API may not be available yet.");
+    const videoJob = await response.json() as {
+      id: string;
+      object: string;
+      created_at: number;
+      status: string;
+      model: string;
+      progress?: number;
+      seconds: string;
+      size: string;
+    };
+
+    console.log("✅ Sora video job created:", videoJob);
+
+    // Poll for completion
+    let video = videoJob;
+    const maxAttempts = 30; // 5 minutes max (10s intervals)
+    let attempts = 0;
+
+    while ((video.status === "queued" || video.status === "in_progress") && attempts < maxAttempts) {
+      console.log(`⏳ Video status: ${video.status} (${video.progress || 0}%)`);
+      
+      await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
+      
+      const statusResponse = await fetch(`https://api.openai.com/v1/videos/${video.id}`, {
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+      });
+
+      if (!statusResponse.ok) {
+        throw new Error(`Failed to check video status: ${statusResponse.statusText}`);
+      }
+
+      video = await statusResponse.json() as typeof videoJob;
+      attempts++;
+    }
+
+    if (video.status !== "completed") {
+      throw new Error(`Video generation failed or timed out. Final status: ${video.status}`);
+    }
+
+    console.log("✅ Sora video completed, downloading...");
+
+    // Download the completed video
+    const downloadResponse = await fetch(`https://api.openai.com/v1/videos/${video.id}/content`, {
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+    });
+
+    if (!downloadResponse.ok) {
+      throw new Error(`Failed to download video: ${downloadResponse.statusText}`);
+    }
+
+    const arrayBuffer = await downloadResponse.arrayBuffer();
+    console.log("✅ Sora video downloaded successfully");
+    
+    return Buffer.from(arrayBuffer);
     
   } catch (error) {
     console.error("❌ Sora generation failed:", error);

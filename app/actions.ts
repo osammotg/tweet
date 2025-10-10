@@ -80,9 +80,15 @@ export async function buildRoastVideoAction(rawInput: RoastInput): Promise<Roast
     sora_prompt = undefined;
   }
 
-  // Generate video (currently using demo)
+  // Generate video with Sora (or demo fallback)
   const video = await withRetry(
-    () => generateEinsteinVideo({ script, seed }),
+    () => generateEinsteinVideo({ 
+      script, 
+      seed,
+      soraPrompt: sora_prompt,
+      durationSec: targetSec,
+      aspect: "9:16"
+    }),
     2,
     800
   );

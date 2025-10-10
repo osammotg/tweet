@@ -23,7 +23,11 @@ npm install
 2. Set up your environment variables:
 ```bash
 cp .env.local.example .env.local
-# Add your OpenAI API key to .env.local
+# Edit .env.local and add your OpenAI API key
+# OPENAI_API_KEY=sk-...
+# 
+# Optional: Enable Sora video generation (requires API access)
+# USE_SORA=true
 ```
 
 3. Run the development server:
@@ -37,6 +41,32 @@ npm run dev
 
 - Next.js 14
 - TypeScript
-- OpenAI API
+- OpenAI API (GPT-4o-mini for script generation)
+- Sora Turbo for video generation (optional)
 - React 18
+
+## Video Generation
+
+### Using Sora Turbo
+
+To enable actual video generation with Sora Turbo:
+
+1. **Get Sora API Access**: Ensure your OpenAI API key has access to Sora
+2. **Enable in Environment**: Set `USE_SORA=true` in your `.env.local` file
+3. **Generate Videos**: The app will automatically use Sora to generate videos based on your roast scripts
+
+**Features:**
+- 🎬 Dynamic camera movements with Einstein-like presenter
+- 📐 Vertical 9:16 format optimized for social media
+- ⚡ High-energy delivery with comedic timing
+- 🎨 Chalkboard lab setting with animated equations
+- 🎯 Generated based on your custom Sora prompts
+
+**Fallback**: If Sora is not enabled or fails, the app uses a demo video placeholder
+
+### Cost & Performance
+
+- Script generation: ~$0.001-0.01 per roast (GPT-4o-mini)
+- Video generation: Variable based on Sora Turbo pricing
+- Caching: Identical tweets return cached results instantly
 

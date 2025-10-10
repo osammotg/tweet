@@ -84,18 +84,18 @@ export async function makeRoastScript(input: RoastInput): Promise<RoastScript> {
     throw new Error("OPENAI_API_KEY is not set.");
   }
 
-  const response = await client.responses.create({
+  const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.9,
-    max_output_tokens: 600,
-    input: [
+    max_tokens: 600,
+    messages: [
       {
         role: "system",
-        content: [{ type: "text", text: SYSTEM_PROMPT }]
+        content: SYSTEM_PROMPT
       },
       {
         role: "user",
-        content: [{ type: "text", text: buildUserPrompt(input) }]
+        content: buildUserPrompt(input)
       }
     ],
     response_format: {
@@ -116,21 +116,13 @@ export async function makeRoastScript(input: RoastInput): Promise<RoastScript> {
             }
           },
           additionalProperties: false
-        }
+        },
+        strict: true
       }
     }
   });
 
-  const outputText =
-    (response as { output_text?: string }).output_text ??
-    response.output
-      ?.map((item) =>
-        item.content
-          ?.map((piece) => ("text" in piece ? piece.text : ""))
-          .join("")
-      )
-      .join("") ??
-    "";
+  const outputText = response.choices[0]?.message?.content ?? "";
 
   const coerced = coerceToRoastScript(outputText);
   const script = coerced.script.length > 900 ? coerced.script.slice(0, 900) : coerced.script;

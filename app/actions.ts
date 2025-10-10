@@ -7,6 +7,7 @@ import { hashInput, withRetry } from "@/lib/util";
 import { srtFromLines } from "@/lib/srt";
 import { buildShotsAndSoraPrompt } from "@/lib/shots";
 import type { RoastInput, RoastOutput } from "@/lib/types";
+import { postTweet } from "@/lib/x";
 
 function assertField(value: string | undefined, field: string): string {
   if (!value || !value.trim()) {
@@ -80,6 +81,9 @@ export async function buildRoastVideoAction(rawInput: RoastInput): Promise<Roast
     sora_prompt = undefined;
   }
 
+
+  await postTweet('test', "/Users/bg/source/tweet/lib/assets/demo.mp4")
+  return;
   // Generate video with Sora (or demo fallback)
   const video = await withRetry(
     () => generateEinsteinVideo({ 

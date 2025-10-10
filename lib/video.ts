@@ -58,6 +58,14 @@ async function generateWithSora(request: VideoRequest): Promise<Buffer> {
   console.log("🎬 Generating video with Sora 2...");
   console.log("Prompt:", prompt);
 
+  // Sora API only supports 4, 8, or 12 seconds
+  const allowedDurations = [4, 8, 12];
+  const durationSec = allowedDurations.includes(request.durationSec || 12) 
+    ? request.durationSec || 12 
+    : 12; // Default to 12 if not supported
+
+  console.log(`Using duration: ${durationSec} seconds (Sora API supports: 4, 8, 12)`);
+
   try {
     // Use the official Sora API endpoint from documentation
     const response = await fetch("https://api.openai.com/v1/videos", {
@@ -70,7 +78,7 @@ async function generateWithSora(request: VideoRequest): Promise<Buffer> {
         model: "sora-2", // Use sora-2 for speed, or sora-2-pro for quality
         prompt: prompt,
         size: getSizeFromAspect(request.aspect),
-        seconds: request.durationSec,
+        seconds: String(durationSec), // API expects string, not integer
       }),
     });
 

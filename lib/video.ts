@@ -59,51 +59,96 @@ async function generateWithSora(request: VideoRequest): Promise<Buffer> {
   console.log("Prompt:", prompt);
 
   try {
-    // Call Sora API using direct HTTP request
-    // Note: As of December 2024, Sora API may be in limited access
-    const response = await fetch("https://api.openai.com/v1/video/generations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "sora-turbo",
-        prompt: prompt,
-        size: getSizeFromAspect(request.aspect),
-      }),
-    });
+    // Try multiple possible Sora API endpoints
+    const possibleEndpoints = [
+      "https://api.openai.com/v1/video/generations",
+      "https://api.openai.com/v1/sora/generations", 
+      "https://api.openai.com/v1/generations"
+    ];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Sora API error (${response.status}): ${errorText}`);
+    let lastError: Error | null = null;
+
+    for (const endpoint of possibleEndpoints) {
+      try {
+        console.log(`Trying endpoint: ${endpoint}`);
+        
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "sora-turbo",
+            prompt: prompt,
+            size: getSizeFromAspect(request.aspect),
+            duration: request.durationSec,
+          }),
+        });
+
+        if (response.status === 404) {
+          console.log(`Endpoint ${endpoint} not found, trying next...`);
+          continue;
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.log(`Endpoint ${endpoint} error (${response.status}): ${errorText}`);
+          
+          // If it's a 401/403, the endpoint exists but we don't have access
+          if (response.status === 401 || response.status === 403) {
+            throw new Error(`Sora API access denied (${response.status}): ${errorText}. Sora API may require special access or be in limited preview.`);
+          }
+          
+          // If it's a 400, the endpoint exists but parameters are wrong
+          if (response.status === 400) {
+            throw new Error(`Sora API parameter error (${response.status}): ${errorText}`);
+          }
+          
+          continue; // Try next endpoint
+        }
+
+        const data = await response.json() as {
+          id: string;
+          status: string;
+          data?: Array<{ url: string }>;
+          url?: string;
+        };
+
+        console.log("✅ Sora API response:", data);
+
+        // Handle different response formats
+        let videoUrl: string | undefined;
+        
+        if (data.url) {
+          videoUrl = data.url;
+        } else if (data.status === "completed" && data.data && data.data[0]) {
+          videoUrl = data.data[0].url;
+        } else {
+          throw new Error(`Video generation incomplete. Status: ${data.status}`);
+        }
+
+        console.log("✅ Sora video generated:", videoUrl);
+
+        // Download the video from the URL
+        const videoResponse = await fetch(videoUrl);
+        if (!videoResponse.ok) {
+          throw new Error(`Failed to download video: ${videoResponse.statusText}`);
+        }
+
+        const arrayBuffer = await videoResponse.arrayBuffer();
+        return Buffer.from(arrayBuffer);
+        
+      } catch (error) {
+        lastError = error as Error;
+        console.log(`Endpoint ${endpoint} failed:`, error);
+        continue;
+      }
     }
 
-    const data = await response.json() as {
-      id: string;
-      status: string;
-      data?: Array<{ url: string }>;
-    };
-
-    // Wait for completion if status is not "completed"
-    let videoUrl: string | undefined;
+    // If all endpoints failed
+    throw lastError || new Error("All Sora API endpoints failed. Sora API may not be available yet.");
     
-    if (data.status === "completed" && data.data && data.data[0]) {
-      videoUrl = data.data[0].url;
-    } else {
-      throw new Error(`Video generation incomplete. Status: ${data.status}`);
-    }
-
-    console.log("✅ Sora video generated:", videoUrl);
-
-    // Download the video from the URL
-    const videoResponse = await fetch(videoUrl);
-    if (!videoResponse.ok) {
-      throw new Error(`Failed to download video: ${videoResponse.statusText}`);
-    }
-
-    const arrayBuffer = await videoResponse.arrayBuffer();
-    return Buffer.from(arrayBuffer);
   } catch (error) {
     console.error("❌ Sora generation failed:", error);
     throw error;

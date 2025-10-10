@@ -49,18 +49,32 @@ npm run dev
 
 ### Using Sora Turbo
 
-⚠️ **Note:** As of December 2024, Sora API access may be limited. Check [OpenAI's platform](https://platform.openai.com) for current availability.
-
-To enable actual video generation with Sora Turbo:
-
-1. **Get Sora API Access**: Ensure your OpenAI API key has access to Sora (may require waitlist/tier)
-2. **Enable in Environment**: Set `USE_SORA=true` in your `.env.local` file
-3. **Generate Videos**: The app will automatically use Sora to generate videos based on your roast scripts
+⚠️ **Important:** As of December 2024, Sora 2 API is in **limited preview** and not publicly available yet.
 
 **Current Status:**
-- The app calls `https://api.openai.com/v1/video/generations` endpoint
-- Falls back gracefully to demo video if Sora isn't available
-- Check server logs to see Sora API responses
+- ✅ **Script Generation**: Working perfectly with GPT-4o-mini
+- ⚠️ **Video Generation**: Sora API requires special access (waitlist/invitation)
+- 🔄 **Fallback**: Uses demo video when Sora isn't available
+
+**To Enable Sora (when available):**
+
+1. **Get Sora API Access**: 
+   - Join OpenAI's waitlist at [platform.openai.com](https://platform.openai.com)
+   - Sora 2 API is currently in limited preview (invitation-only)
+   - Expected to be publicly available "in the coming weeks"
+
+2. **Enable in Environment**: Set `USE_SORA=true` in your `.env.local` file
+
+3. **Test Multiple Endpoints**: The app tries these endpoints:
+   - `https://api.openai.com/v1/video/generations`
+   - `https://api.openai.com/v1/sora/generations`
+   - `https://api.openai.com/v1/generations`
+
+**What You'll See:**
+- ✅ **Success**: Real Sora-generated videos (when you have access)
+- ❌ **Access Denied**: "Sora API access denied" - you need special access
+- ❌ **Not Found**: "All Sora API endpoints failed" - API not available yet
+- 📹 **Demo**: Falls back to demo video (current behavior)
 
 **Features:**
 - 🎬 Dynamic camera movements with Einstein-like presenter

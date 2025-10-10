@@ -49,11 +49,18 @@ npm run dev
 
 ### Using Sora Turbo
 
+⚠️ **Note:** As of December 2024, Sora API access may be limited. Check [OpenAI's platform](https://platform.openai.com) for current availability.
+
 To enable actual video generation with Sora Turbo:
 
-1. **Get Sora API Access**: Ensure your OpenAI API key has access to Sora
+1. **Get Sora API Access**: Ensure your OpenAI API key has access to Sora (may require waitlist/tier)
 2. **Enable in Environment**: Set `USE_SORA=true` in your `.env.local` file
 3. **Generate Videos**: The app will automatically use Sora to generate videos based on your roast scripts
+
+**Current Status:**
+- The app calls `https://api.openai.com/v1/video/generations` endpoint
+- Falls back gracefully to demo video if Sora isn't available
+- Check server logs to see Sora API responses
 
 **Features:**
 - 🎬 Dynamic camera movements with Einstein-like presenter

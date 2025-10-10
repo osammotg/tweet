@@ -59,18 +59,44 @@ async function generateWithSora(request: VideoRequest): Promise<Buffer> {
   console.log("Prompt:", prompt);
 
   try {
-    // Call Sora API using the videos endpoint
-    const response = await client.videos.generate({
-      model: "sora-turbo",
-      prompt: prompt,
-      size: getSizeFromAspect(request.aspect),
-      // Note: Sora determines duration based on content, we suggest but don't guarantee
+    // Call Sora API using direct HTTP request
+    // Note: As of December 2024, Sora API may be in limited access
+    const response = await fetch("https://api.openai.com/v1/video/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "sora-turbo",
+        prompt: prompt,
+        size: getSizeFromAspect(request.aspect),
+      }),
     });
 
-    // Download the video from the URL
-    const videoUrl = response.url;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Sora API error (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json() as {
+      id: string;
+      status: string;
+      data?: Array<{ url: string }>;
+    };
+
+    // Wait for completion if status is not "completed"
+    let videoUrl: string | undefined;
+    
+    if (data.status === "completed" && data.data && data.data[0]) {
+      videoUrl = data.data[0].url;
+    } else {
+      throw new Error(`Video generation incomplete. Status: ${data.status}`);
+    }
+
     console.log("✅ Sora video generated:", videoUrl);
 
+    // Download the video from the URL
     const videoResponse = await fetch(videoUrl);
     if (!videoResponse.ok) {
       throw new Error(`Failed to download video: ${videoResponse.statusText}`);
